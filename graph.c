@@ -1,425 +1,304 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
 
-#define MAX_VERTICES 100
-#define INF INT_MAX
-
-int numVertices; // Global variable to store the number of vertices
-
-typedef struct
+typedef struct vertex
 {
-  int vertex;
-  int weight;
-} Edge;
+  int key;
+  int parent;
+  int idx;
+} Node;
 
-typedef struct
+typedef struct adjArr
 {
-  Edge *edges[MAX_VERTICES];
-  int size[MAX_VERTICES];
+  int degree;
+  Node *vertex;
+} AdjArr;
+
+typedef struct graph
+{
   int numVertices;
+  Node *vertices;
+  AdjArr *adjList;
+  int **weights;
 } Graph;
 
-typedef struct
+void minHeapify(Node *arr, int i, int size)
 {
-  int vertex;
-  int key;
-} HeapNode;
+  int l = 2 * i + 1;
+  int r = 2 * i + 2;
+  int min;
+  Node t;
 
-typedef struct
+  if (l < size && arr[l].key < arr[i].key)
+    min = l;
+  else
+    min = i;
+
+  if (r < size && arr[r].key < arr[min].key)
+    min = r;
+
+  if (min != i)
+  {
+    t = arr[i];
+    arr[i] = arr[min];
+    arr[min] = t;
+    minHeapify(arr, min, size);
+  }
+}
+
+void enqueue(Node *arr, int size, int *i, Node x)
 {
-  HeapNode *array[MAX_VERTICES];
-  int size;
-  int capacity;
-} MinHeap;
+  (*i)++;
+  if ((*i) >= size)
+  {
+    printf("Overflow\n");
+    (*i)--;
+    return;
+  }
 
-// Function prototypes
-Graph *createGraph(int numVertices);
-void addEdge(Graph *graph, int src, int dest, int weight);
-MinHeap *createMinHeap(int capacity);
-void swapHeapNodes(HeapNode **a, HeapNode **b);
-void minHeapify(MinHeap *minHeap, int idx);
-HeapNode *extractMin(MinHeap *minHeap);
-void decreaseKey(MinHeap *minHeap, int vertex, int key);
-int isInMinHeap(MinHeap *minHeap, int vertex);
-void printArr(int dist[], int n);
-void dijkstra(Graph *graph, int src);
-void primMST(Graph *graph, int src);
-void readGraphFromFile(Graph **graph, const char *filename); // Updated to pass Graph**
-void printGraph(Graph *graph);                               // Debug function
-void freeGraph(Graph *graph);
-void freeMinHeap(MinHeap *minHeap);
+  arr[*i] = x;
+  int child = *i;
+  int parent = (child - 1) / 2;
+  Node temp;
 
-// Create a graph with a given number of vertices
+  while (child > 0 && arr[parent].key > arr[child].key)
+  {
+    temp = arr[parent];
+    arr[parent] = arr[child];
+    arr[child] = temp;
+
+    child = parent;
+    parent = (child - 1) / 2;
+  }
+}
+
+Node dequeue(Node *arr, int size, int *i)
+{
+  if ((*i) < 0)
+  {
+    printf("Underflow\n");
+    Node emptyNode = {9999, -1, -1};
+    return emptyNode;
+  }
+  Node min = arr[0];
+  arr[0] = arr[(*i)];
+  (*i)--;
+  minHeapify(arr, 0, (*i) + 1);
+
+  printf("Dequeued %d with key = %d\n", min.idx, min.key);
+  return min;
+}
+
+void heapDecreaseKey(Node *arr, int i, int newKey, int heapSize)
+{
+  if (i < 0 || i > heapSize - 1)
+  {
+    printf("Invalid Index\n");
+    return;
+  }
+
+  if (newKey > arr[i].key)
+  {
+    printf("New key is larger than the current key! Invalid operation.\n");
+    return;
+  }
+
+  arr[i].key = newKey;
+
+  int child = i;
+  int parent = (child - 1) / 2;
+  Node temp;
+  while (child > 0 && arr[parent].key > arr[child].key)
+  {
+    temp = arr[parent];
+    arr[parent] = arr[child];
+    arr[child] = temp;
+
+    child = parent;
+    parent = (child - 1) / 2;
+  }
+}
+
+int isInQueue(Node *arr, int size, int idx)
+{
+  int i;
+  for (i = 0; i < size; i++)
+  {
+    if (arr[i].idx == idx)
+      return 1;
+  }
+
+  return 0;
+}
+
 Graph *createGraph(int numVertices)
 {
   Graph *graph = (Graph *)malloc(sizeof(Graph));
   if (!graph)
   {
-    perror("Failed to allocate memory for graph");
-    exit(EXIT_FAILURE);
+    printf("Memory allocation failed for graph\n");
+    exit(1);
   }
+
   graph->numVertices = numVertices;
+  graph->adjList = (AdjArr *)malloc(numVertices * sizeof(AdjArr));
+  graph->vertices = (Node *)malloc(numVertices * sizeof(Node));
+  graph->weights = (int **)malloc(numVertices * sizeof(int *));
+
+  if (!graph->adjList || !graph->vertices || !graph->weights)
+  {
+    printf("Memory allocation failed for graph components\n");
+    exit(1);
+  }
+
   for (int i = 0; i < numVertices; i++)
   {
-    graph->edges[i] = (Edge *)malloc(MAX_VERTICES * sizeof(Edge));
-    if (!graph->edges[i])
+    graph->weights[i] = (int *)malloc(numVertices * sizeof(int));
+    if (!graph->weights[i])
     {
-      perror("Failed to allocate memory for edges");
-      exit(EXIT_FAILURE);
+      printf("Memory allocation failed for weights\n");
+      exit(1);
     }
-    graph->size[i] = 0;
   }
+
+  // Graph initialization
+  for (int i = 0; i < numVertices; i++)
+  {
+    graph->vertices[i].key = 9999;
+    graph->vertices[i].parent = -1;
+    graph->vertices[i].idx = i;
+    graph->adjList[i].degree = 0;
+    graph->adjList[i].vertex = (Node *)malloc(numVertices * sizeof(Node));
+    if (!graph->adjList[i].vertex)
+    {
+      printf("Memory allocation failed for adjacency list\n");
+      exit(1);
+    }
+
+    for (int j = 0; j < numVertices; j++)
+    {
+      graph->weights[i][j] = 0;
+      graph->adjList[i].vertex[j].key = 9999;
+      graph->adjList[i].vertex[j].parent = -1;
+    }
+  }
+
   return graph;
 }
 
-// Add an edge to the graph
-void addEdge(Graph *graph, int src, int dest, int weight)
+void readGraphFromFile(Graph *graph)
 {
-  if (src < 0 || src >= graph->numVertices || dest < 0 || dest >= graph->numVertices)
-  {
-    printf("Invalid edge: %d - %d (%d)\n", src, dest, weight);
-    return;
-  }
-
-  // Add edge from src to dest (only once)
-  graph->edges[src][graph->size[src]].vertex = dest;
-  graph->edges[src][graph->size[src]].weight = weight;
-  graph->size[src]++;
-
-  printf("Added edge: %d - %d (%d)\n", src, dest, weight); // Debug statement
-}
-
-// Create a min-heap with a given capacity
-MinHeap *createMinHeap(int capacity)
-{
-  MinHeap *minHeap = (MinHeap *)malloc(sizeof(MinHeap));
-  if (!minHeap)
-  {
-    perror("Failed to allocate memory for min-heap");
-    exit(EXIT_FAILURE);
-  }
-  minHeap->size = 0;
-  minHeap->capacity = capacity;
-  return minHeap;
-}
-
-// Swap two heap nodes
-void swapHeapNodes(HeapNode **a, HeapNode **b)
-{
-  HeapNode *t = *a;
-  *a = *b;
-  *b = t;
-}
-
-// Heapify the min-heap
-void minHeapify(MinHeap *minHeap, int idx)
-{
-  int smallest = idx;
-  int left = 2 * idx + 1;
-  int right = 2 * idx + 2;
-
-  if (left < minHeap->size && minHeap->array[left]->key < minHeap->array[smallest]->key)
-    smallest = left;
-
-  if (right < minHeap->size && minHeap->array[right]->key < minHeap->array[smallest]->key)
-    smallest = right;
-
-  if (smallest != idx)
-  {
-    swapHeapNodes(&minHeap->array[smallest], &minHeap->array[idx]);
-    minHeapify(minHeap, smallest);
-  }
-}
-
-// Extract the minimum node from the heap
-HeapNode *extractMin(MinHeap *minHeap)
-{
-  if (minHeap->size == 0)
-    return NULL;
-
-  HeapNode *root = minHeap->array[0];
-  HeapNode *lastNode = minHeap->array[minHeap->size - 1];
-  minHeap->array[0] = lastNode;
-  minHeap->size--;
-  minHeapify(minHeap, 0);
-
-  return root;
-}
-
-// Decrease the key of a vertex in the heap
-void decreaseKey(MinHeap *minHeap, int vertex, int key)
-{
-  int i;
-  for (i = 0; i < minHeap->size; i++)
-  {
-    if (minHeap->array[i]->vertex == vertex)
-    {
-      minHeap->array[i]->key = key;
-      break;
-    }
-  }
-
-  while (i && minHeap->array[i]->key < minHeap->array[(i - 1) / 2]->key)
-  {
-    swapHeapNodes(&minHeap->array[i], &minHeap->array[(i - 1) / 2]);
-    i = (i - 1) / 2;
-  }
-}
-
-// Check if a vertex is in the min-heap
-int isInMinHeap(MinHeap *minHeap, int vertex)
-{
-  for (int i = 0; i < minHeap->size; i++)
-  {
-    if (minHeap->array[i]->vertex == vertex)
-      return 1;
-  }
-  return 0;
-}
-
-// Print the distance array for Dijkstra's algorithm
-void printArr(int dist[], int n)
-{
-  printf("Vertex   Distance from Source\n");
-  for (int i = 0; i < n; ++i)
-    printf("%d \t\t %d\n", i, dist[i]);
-}
-
-// Dijkstra's algorithm
-void dijkstra(Graph *graph, int src)
-{
-  int V = graph->numVertices;
-  int dist[V];
-
-  MinHeap *minHeap = createMinHeap(V);
-
-  for (int v = 0; v < V; ++v)
-  {
-    dist[v] = INF;
-    minHeap->array[v] = (HeapNode *)malloc(sizeof(HeapNode));
-    if (!minHeap->array[v])
-    {
-      perror("Failed to allocate memory for heap node");
-      exit(EXIT_FAILURE);
-    }
-    minHeap->array[v]->vertex = v;
-    minHeap->array[v]->key = dist[v];
-    minHeap->size++;
-  }
-
-  dist[src] = 0;
-  decreaseKey(minHeap, src, dist[src]);
-
-  while (minHeap->size != 0)
-  {
-    HeapNode *minHeapNode = extractMin(minHeap);
-    int u = minHeapNode->vertex;
-
-    for (int i = 0; i < graph->size[u]; i++)
-    {
-      int v = graph->edges[u][i].vertex;
-      int weight = graph->edges[u][i].weight;
-
-      if (isInMinHeap(minHeap, v) && dist[u] != INF && dist[u] + weight < dist[v])
-      {
-        dist[v] = dist[u] + weight;
-        decreaseKey(minHeap, v, dist[v]);
-      }
-    }
-    free(minHeapNode); // Free the extracted node
-  }
-
-  printArr(dist, V);
-  freeMinHeap(minHeap);
-}
-
-// Prim's algorithm with source vertex
-void primMST(Graph *graph, int src)
-{
-  int V = graph->numVertices;
-  int parent[V];
-  int key[V];
-
-  MinHeap *minHeap = createMinHeap(V);
-
-  for (int v = 0; v < V; ++v)
-  {
-    parent[v] = -1;
-    key[v] = INF;
-    minHeap->array[v] = (HeapNode *)malloc(sizeof(HeapNode));
-    if (!minHeap->array[v])
-    {
-      perror("Failed to allocate memory for heap node");
-      exit(EXIT_FAILURE);
-    }
-    minHeap->array[v]->vertex = v;
-    minHeap->array[v]->key = key[v];
-    minHeap->size++;
-  }
-
-  key[src] = 0; // Start from the specified source vertex
-  decreaseKey(minHeap, src, key[src]);
-
-  while (minHeap->size != 0)
-  {
-    HeapNode *minHeapNode = extractMin(minHeap);
-    int u = minHeapNode->vertex;
-
-    for (int i = 0; i < graph->size[u]; i++)
-    {
-      int v = graph->edges[u][i].vertex;
-      int weight = graph->edges[u][i].weight;
-
-      if (isInMinHeap(minHeap, v) && weight < key[v])
-      {
-        key[v] = weight;
-        parent[v] = u;
-        decreaseKey(minHeap, v, key[v]);
-      }
-    }
-    free(minHeapNode); // Free the extracted node
-  }
-
-  printf("Edge   Weight\n");
-  for (int i = 0; i < V; ++i)
-  {
-    if (parent[i] != -1)
-      printf("%d - %d    %d \n", parent[i], i, key[i]);
-  }
-
-  freeMinHeap(minHeap);
-}
-
-// Read graph from a file in the new format
-void readGraphFromFile(Graph **graph, const char *filename)
-{
-  FILE *file = fopen(filename, "r");
+  FILE *file = fopen("graph.txt", "r");
   if (!file)
   {
-    perror("Unable to open file");
-    exit(EXIT_FAILURE);
+    printf("Error opening input file!\n");
+    exit(1);
   }
 
-  // Read the number of vertices
-  if (fscanf(file, "%d", &numVertices) != 1)
+  int vertex, degree, i, neighbor, weight;
+  while (fscanf(file, "%d %d", &vertex, &degree) != EOF)
   {
-    printf("Error reading number of vertices from file.\n");
-    fclose(file);
-    exit(EXIT_FAILURE);
-  }
-  printf("Number of vertices: %d\n", numVertices);
-
-  *graph = createGraph(numVertices); // Create the graph after reading numVertices
-
-  // Read each vertex and its edges
-  for (int i = 0; i < numVertices; i++)
-  {
-    int vertex, numEdges;
-    if (fscanf(file, "%d %d", &vertex, &numEdges) != 2)
+    if (vertex < 0 || vertex >= graph->numVertices)
     {
-      printf("Error reading vertex or number of edges.\n");
-      fclose(file);
-      exit(EXIT_FAILURE);
+      printf("Invalid vertex index: %d\n", vertex);
+      continue;
     }
 
-    for (int j = 0; j < numEdges; j++)
+    graph->adjList[vertex].degree = degree;
+    for (i = 0; i < degree; i++)
     {
-      int dest, weight;
-      if (fscanf(file, "%d %d", &dest, &weight) != 2)
+      fscanf(file, "%d %d", &neighbor, &weight);
+
+      if (neighbor < 0 || neighbor >= graph->numVertices)
       {
-        printf("Error reading edge or weight.\n");
-        fclose(file);
-        exit(EXIT_FAILURE);
+        printf("Invalid neighbor index: %d\n", neighbor);
+        continue;
       }
-      addEdge(*graph, vertex, dest, weight);
+
+      graph->weights[vertex][neighbor] = weight;
     }
   }
 
   fclose(file);
-  printf("Finished reading graph.\n");
 }
 
-// Print the graph adjacency list
+void prims(Graph *graph, int s, Node *queue, int *idx)
+{
+  graph->vertices[s].key = 0;
+  int i, j;
+  Node u, v;
+  for (i = 0; i < graph->numVertices; i++)
+  {
+    enqueue(queue, graph->numVertices, idx, graph->vertices[i]);
+  }
+
+  while ((*idx) != -1) // Empty
+  {
+    u = dequeue(queue, graph->numVertices, idx);
+    for (i = 0; i < graph->numVertices; i++)
+    {
+      if (graph->weights[u.idx][i] != 0)
+      {
+        if (isInQueue(queue, graph->numVertices, i) && graph->weights[u.idx][i] < graph->vertices[i].key)
+        {
+          graph->vertices[i].parent = u.idx;
+          graph->adjList[u.idx].vertex[i].parent = u.idx;
+          graph->vertices[i].key = graph->weights[u.idx][i];
+          graph->adjList[u.idx].vertex[i].key = graph->weights[u.idx][i];
+          heapDecreaseKey(queue, i, graph->weights[u.idx][i], graph->numVertices);
+        }
+      }
+    }
+  }
+}
+
 void printGraph(Graph *graph)
 {
-  printf("Graph adjacency list:\n");
-  for (int i = 0; i < graph->numVertices; i++)
+  int v, j, w, p;
+  for (v = 0; v < graph->numVertices; v++)
   {
-    printf("Vertex %d: ", i);
-    for (int j = 0; j < graph->size[i]; j++)
+    printf("%d: ", v);
+    for (j = 0; j < graph->numVertices; j++)
     {
-      printf("(%d, %d) ", graph->edges[i][j].vertex, graph->edges[i][j].weight);
+      w = graph->adjList[v].vertex[j].key;
+      p = graph->adjList[v].vertex[j].parent;
+      if (graph->weights[v][j] != 0)
+      {
+        printf("%d/%d/%d ", j, p, w);
+      }
     }
     printf("\n");
   }
+  printf("\n");
 }
 
-// Free memory allocated for the graph
-void freeGraph(Graph *graph)
+void printMST(Graph *graph)
 {
-  for (int i = 0; i < graph->numVertices; i++)
+  int v;
+  printf("Vertex\t   Predecessor\t\tKey\n");
+  for (v = 0; v < graph->numVertices; v++)
   {
-    free(graph->edges[i]);
+    printf("%d\t\t%d\t\t%d\n", graph->vertices[v].idx, graph->vertices[v].parent, graph->vertices[v].key);
   }
-  free(graph);
-}
-
-// Free memory allocated for the min-heap
-void freeMinHeap(MinHeap *minHeap)
-{
-  for (int i = 0; i < minHeap->size; i++)
-  {
-    free(minHeap->array[i]);
-  }
-  free(minHeap);
+  printf("\n");
 }
 
 int main()
 {
-  Graph *graph = NULL; // Initialize graph to NULL
+  int n, i = -1, s;
+  printf("Enter no. of vertices\n");
+  scanf("%d", &n);
+  Graph *graph = createGraph(n);
+  readGraphFromFile(graph);
+  Node *queue = (Node *)malloc(n * sizeof(Node));
 
-  readGraphFromFile(&graph, "graph.txt"); // Pass the address of graph
-  printGraph(graph);                      // Debug statement
+  printf("\nThe Graph\n");
+  printGraph(graph);
 
-  int choice;
-  printf("1. Prim's Algorithm\n");
-  printf("2. Dijkstra's Algorithm\n");
-  printf("Enter your choice: ");
-  scanf("%d", &choice);
-
-  switch (choice)
-  {
-  case 1:
-  {
-    int src;
-    printf("Enter the source vertex for Prim's algorithm: ");
-    scanf("%d", &src);
-    if (src < 0 || src >= numVertices)
-    {
-      printf("Invalid source vertex. Please enter a value between 0 and %d.\n", numVertices - 1);
-      break;
-    }
-    primMST(graph, src); // Pass the source vertex to Prim's algorithm
-    break;
-  }
-  case 2:
-  {
-    int src;
-    printf("Enter the source vertex for Dijkstra's algorithm: ");
-    scanf("%d", &src);
-    if (src < 0 || src >= numVertices)
-    {
-      printf("Invalid source vertex. Please enter a value between 0 and %d.\n", numVertices - 1);
-      break;
-    }
-    dijkstra(graph, src);
-    break;
-  }
-  default:
-    printf("Invalid choice\n");
-  }
-
-  freeGraph(graph);
+  printf("Enter source index\n");
+  scanf("%d", &s);
+  prims(graph, s, queue, &i);
+  printf("After Prims -> MST\n");
+  printMST(graph);
   return 0;
 }
