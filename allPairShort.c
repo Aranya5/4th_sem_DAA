@@ -123,7 +123,7 @@ void printPredecessors()
 int main()
 {
 
-  FILE *file = fopen("graph.txt", "r");
+  FILE *file = fopen("graph_all.txt", "r");
 
   if (!file)
   {
