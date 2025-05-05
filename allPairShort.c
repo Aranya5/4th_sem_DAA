@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-#define INF 1000000000
+#define INF 99999999
 
 #define MAX 100
 
