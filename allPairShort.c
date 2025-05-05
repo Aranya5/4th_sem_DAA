@@ -193,7 +193,7 @@ int main()
 
   printf("\nShortest Paths:\n");
 
-  for (int i = 0; i < vertices; i++)
+  /*for (int i = 0; i < vertices; i++)
   {
 
     for (int j = 0; j < vertices; j++)
@@ -216,6 +216,30 @@ int main()
           printPath(i, j);
         }
       }
+    }
+  }*/
+  printf("Enter the source vertex: ");
+  int source;
+  scanf("%d", &source);
+  printf("Enter the destination vertex: ");
+  int destination;
+  scanf("%d", &destination);
+  printf("From %d to %d: ", source, destination);
+  if (source != destination)
+  {
+
+    printf("From %d to %d: ", source, destination);
+
+    if (dist[source][destination] == INF)
+
+      printf("No path\n");
+
+    else
+    {
+
+      printf("Cost = %d, ", dist[source][destination]);
+
+      printPath(source, destination);
     }
   }
 
