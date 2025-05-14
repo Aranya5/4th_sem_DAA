@@ -189,35 +189,7 @@ int main()
 
   printPredecessors();
 
-  // Print shortest paths
-
-  printf("\nShortest Paths:\n");
-
-  /*for (int i = 0; i < vertices; i++)
-  {
-
-    for (int j = 0; j < vertices; j++)
-    {
-
-      if (i != j)
-      {
-
-        printf("From %d to %d: ", i, j);
-
-        if (dist[i][j] == INF)
-
-          printf("No path\n");
-
-        else
-        {
-
-          printf("Cost = %d, ", dist[i][j]);
-
-          printPath(i, j);
-        }
-      }
-    }
-  }*/
+   printf("\nShortest Paths:\n");
   printf("Enter the source vertex: ");
   int source;
   scanf("%d", &source);
