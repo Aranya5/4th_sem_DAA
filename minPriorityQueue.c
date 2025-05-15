@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void minHeapify(int *arr, int i, int size)
+void minHeapify(int arr[], int i, int size)
 {
   int l = 2 * i + 1;
   int r = 2 * i + 2;
@@ -59,12 +59,12 @@ void dequeue(int *arr, int size, int *i)
     printf("Underflow\n");
     return;
   }
-  int max = arr[0];
+  int min = arr[0];
   arr[0] = arr[(*i)];
   (*i)--;
   minHeapify(arr, 0, (*i) + 1);
 
-  printf("Dequeued = %d\n", max);
+  printf("Dequeued: %d\n", min);
 }
 
 void heapDecreaseKey(int *arr, int i, int newKey, int heapSize)
